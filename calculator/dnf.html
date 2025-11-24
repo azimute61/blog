@@ -243,6 +243,53 @@
     #close-history { margin-left:auto; background:transparent; color:#333; border:1px solid #ddd; padding:6px 10px; }
     #close-history:hover { background:#f3f3f3; }
 
+    /* Custom bank-transfer checkbox */
+    .transfer-label { display:flex; align-items:center; gap:8px; cursor:pointer; user-select:none; }
+    .transfer-label input[type="checkbox"] { position: absolute; opacity: 0; width: 0; height: 0; }
+    .transfer-label .checkmark {
+      width: 20px;
+      height: 20px;
+      border-radius: 4px;
+      border: 2px solid #dcdcdc;
+      background: linear-gradient(#fff,#fbfbfb);
+      box-shadow: 0 1px 2px rgba(0,0,0,0.04) inset;
+      display:inline-block;
+      flex: 0 0 20px;
+      position: relative;
+      transition: background .12s ease, border-color .12s ease;
+    }
+    /* check icon (hidden by default) */
+    .transfer-label .checkmark::after {
+      content: '';
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%,-50%) scale(0.9);
+      width: 12px;
+      height: 12px;
+      /* stroke-based checkmark with ~2px thickness */
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'><path d='M20 7 L9 18 L4 13' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/></svg>");
+      background-size: contain;
+      background-repeat: no-repeat;
+      opacity: 0;
+      transition: opacity .12s ease, transform .12s ease;
+      transform-origin: center;
+    }
+    /* checked state styles */
+    .transfer-label input[type="checkbox"]:checked + .checkmark {
+      background: linear-gradient(#2f9a57,#2b8a3e);
+      border-color: #2b8a3e;
+    }
+    .transfer-label input[type="checkbox"]:checked + .checkmark::after {
+      opacity: 1;
+      transform: translate(-50%,-50%) scale(1);
+    }
+    /* focus ring for keyboard users */
+    .transfer-label input[type="checkbox"]:focus + .checkmark {
+      box-shadow: 0 0 0 4px rgba(43,138,62,0.12);
+    }
+    .transfer-text { font-weight:700; color:#333; }
+
     .payment-modal {
       position: fixed;
       left: 0;
@@ -330,8 +377,10 @@
       <hr />
       <h3>총 합계: <span id="total-price">0</span>원</h3>
       <div class="transfer-row" style="margin:8px 0;">
-        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-          <input id="bank-transfer" type="checkbox" /> 계좌이체
+        <label class="transfer-label">
+          <input id="bank-transfer" type="checkbox" />
+          <span class="checkmark" aria-hidden="true"></span>
+          <span class="transfer-text">계좌이체</span>
         </label>
       </div>
       <div class="cart-buttons">
@@ -532,10 +581,11 @@
       const items = Object.values(cart).map(i => ({ id: i.id, name: i.name, price: i.price, qty: i.qty }));
       if (items.length === 0) return;
       const total = items.reduce((s, it) => s + it.price * it.qty, 0);
-      const bankChecked = !!document.getElementById('bank-transfer') && document.getElementById('bank-transfer').checked;
+      const btElem = document.getElementById('bank-transfer');
+      const bankChecked = !!btElem && btElem.checked;
       if (bankChecked) {
         const ts = new Date().toISOString();
-        const order = { id: 'order-' + Date.now(), timestamp: ts, items, total };
+        const order = { id: 'order-' + Date.now(), timestamp: ts, items, total, type: '계좌이체' };
         orders.push(order);
         saveOrdersToStorage();
         cart = {};
@@ -543,6 +593,8 @@
         renderCart();
         renderMenu();
         if (typeof renderRecentPurchases === 'function') renderRecentPurchases();
+        // only clear the checkbox after successful registration
+        if (btElem) btElem.checked = false;
         return;
       }
       document.getElementById('payment-total').textContent = total.toLocaleString() + '원';
@@ -612,7 +664,7 @@
         return;
       }
       const ts = new Date().toISOString();
-      const order = { id: 'order-' + Date.now(), timestamp: ts, items, total };
+      const order = { id: 'order-' + Date.now(), timestamp: ts, items, total, type: '현금구매' };
       orders.push(order);
       saveOrdersToStorage();
       cart = {};
@@ -621,6 +673,7 @@
       renderMenu();
       if (typeof renderRecentPurchases === 'function') renderRecentPurchases();
       hidePaymentModal();
+      const btElem = document.getElementById('bank-transfer'); if (btElem) btElem.checked = false;
     }
 
     // History modal functions
@@ -645,7 +698,7 @@
         div.innerHTML = `
           <div style="margin-top:6px;">${itemsHtml}</div>
           <div class="history-meta" style="margin-top:8px;">
-            <div>${new Date(o.timestamp).toLocaleString()}</div>
+            <div>${(o.type ? '[' + o.type + '] ' : '') + new Date(o.timestamp).toLocaleString()}</div>
             <div>총액 <span class="history-item-price order-total">${o.total.toLocaleString()}원</span></div>
           </div>
         `;
